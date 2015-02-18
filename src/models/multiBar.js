@@ -11,10 +11,13 @@ nv.models.multiBar = function() {
         , height = 500
         , x = d3.scale.ordinal()
         , y = d3.scale.linear()
+        , y2 = d3.scale.linear()
         , id = Math.floor(Math.random() * 10000) //Create semi-unique ID in case user doesn't select one
         , getX = function(d) { return d.x }
         , getY = function(d) { return d.y }
+        , getY2 = function(d) { return d.y2 }
         , forceY = [0] // 0 is forced by default.. this makes sense for the majority of bar graphs... user can always do chart.forceY([]) to remove
+        , forceY2 = [0]
         , clipEdge = true
         , stacked = false
         , stackOffset = 'zero' // options include 'silhouette', 'wiggle', 'expand', 'zero', or a custom function
@@ -25,6 +28,7 @@ nv.models.multiBar = function() {
         , duration = 500
         , xDomain
         , yDomain
+        , y2Domain
         , xRange
         , yRange
         , groupSpacing = 0.1
@@ -35,7 +39,7 @@ nv.models.multiBar = function() {
     // Private Variables
     //------------------------------------------------------------
 
-    var x0, y0 //used to store previous scales
+    var x0, y0, y02 //used to store previous scales
         , renderWatch = nv.utils.renderWatch(dispatch, duration)
         ;
 
@@ -78,6 +82,9 @@ nv.models.multiBar = function() {
             data.forEach(function(series, i) {
                 series.values.forEach(function(point) {
                     point.series = i;
+                    if (point.series == 1){
+                      point.y2 = point.y;
+                    }
                 });
             });
 
@@ -104,7 +111,7 @@ nv.models.multiBar = function() {
             var seriesData = (xDomain && yDomain) ? [] : // if we know xDomain and yDomain, no need to calculate
                 data.map(function(d) {
                     return d.values.map(function(d,i) {
-                        return { x: getX(d,i), y: getY(d,i), y0: d.y0, y1: d.y1 }
+                        return { x: getX(d,i), y: getY(d,i), y0: d.y0, y1: d.y1, yAxis: d.series + 1 }
                     })
                 });
 
@@ -112,9 +119,14 @@ nv.models.multiBar = function() {
                 .rangeBands(xRange || [0, availableWidth], groupSpacing);
 
             y.domain(yDomain || d3.extent(d3.merge(seriesData).map(function(d) { return stacked ? (d.y > 0 ? d.y1 : d.y1 + d.y ) : d.y }).concat(forceY)))
-                .range(yRange || [availableHeight, 0]);
+            .range(yRange || [availableHeight, 0]);
+
+            y2.domain(y2Domain || d3.extent(d3.merge(seriesData).map(function(d) { if (d.yAxis == 2) { return d.y + (stacked ? d.y1 : 0) }}).concat(forceY2)))
+                .range([availableHeight, 0]);
 
             // If scale's domain don't have a range, slightly adjust to make one... so a chart can show a single data point
+
+            if (x.domain()[0] === x.domain()[1] || y.domain()[0] === y.domain()[1]) singlePoint = true;
             if (x.domain()[0] === x.domain()[1])
                 x.domain()[0] ?
                     x.domain([x.domain()[0] - x.domain()[0] * 0.01, x.domain()[1] + x.domain()[1] * 0.01])
@@ -127,6 +139,7 @@ nv.models.multiBar = function() {
 
             x0 = x0 || x;
             y0 = y0 || y;
+            y02 = y02 || y;
 
             // Setup containers and skeleton of chart
             var wrap = container.selectAll('g.nv-wrap.nv-multibar').data([data]);
@@ -184,7 +197,7 @@ nv.models.multiBar = function() {
                     .attr('y', function(d) { return y0(stacked ? d.y0 : 0) || 0 })
                     .attr('height', 0)
                     .attr('width', x.rangeBand() / (stacked ? 1 : data.length) )
-                    .attr('transform', function(d,i) { return 'translate(' + x(getX(d,i)) + ',0)'; })
+                    .attr('transform', function(d,i) { return 'translate(' + x(getX(d,i)) + ',0)'; }) //TODO REMOVED
                 ;
             bars
                 .style('fill', function(d,i,j){ return color(d, j, i);  })
@@ -240,6 +253,8 @@ nv.models.multiBar = function() {
                 .attr('class', function(d,i) { return getY(d,i) < 0 ? 'nv-bar negative' : 'nv-bar positive'})
                 .attr('transform', function(d,i) { return 'translate(' + x(getX(d,i)) + ',0)'; })
 
+
+            // TODO THIS IF COMPLETE REMOVED
             if (barColor) {
                 if (!disabled) disabled = data.map(function() { return true });
                 bars
@@ -261,7 +276,7 @@ nv.models.multiBar = function() {
                         return Math.max(Math.abs(y(d.y + (stacked ? d.y0 : 0)) - y((stacked ? d.y0 : 0))),1);
                     })
                     .attr('x', function(d,i) {
-                        return stacked ? 0 : (d.series * x.rangeBand() / data.length )
+                          return stacked ? 0 : (d.series * x.rangeBand() / data.length )
                     })
                     .attr('width', x.rangeBand() / (stacked ? 1 : data.length) );
             else
@@ -271,14 +286,30 @@ nv.models.multiBar = function() {
                     })
                     .attr('width', x.rangeBand() / data.length)
                     .attr('y', function(d,i) {
+                      if (d.series == 0){
                         return getY(d,i) < 0 ?
-                            y(0) :
+                                y(0) :
                                 y(0) - y(getY(d,i)) < 1 ?
-                            y(0) - 1 :
-                            y(getY(d,i)) || 0;
+                                  y(0) - 1 :
+                                y(getY(d,i)) || 0;
+                      }
+                      else
+                      {
+                        return getY(d,i) < 0 ?
+                                y2(0) :
+                                y2(0) - y2(getY(d,i)) < 1 ?
+                                  y2(0) - 1 :
+                                  y2(getY(d,i))
+                      }
                     })
                     .attr('height', function(d,i) {
+                      if (d.series == 0){
                         return Math.max(Math.abs(y(getY(d,i)) - y(0)),1) || 0;
+                      }
+                      else
+                      {
+                        return Math.max(Math.abs(y2(getY2(d,i)) - y2(0)),1);
+                      }
                     });
 
             //store old scales for use in transitions on update
@@ -313,6 +344,7 @@ nv.models.multiBar = function() {
         y:       {get: function(){return getY;}, set: function(_){getY=_;}},
         xScale:  {get: function(){return x;}, set: function(_){x=_;}},
         yScale:  {get: function(){return y;}, set: function(_){y=_;}},
+        y2Scale:  {get: function(){return y2;}, set: function(_){y2=_;}},
         xDomain: {get: function(){return xDomain;}, set: function(_){xDomain=_;}},
         yDomain: {get: function(){return yDomain;}, set: function(_){yDomain=_;}},
         xRange:  {get: function(){return xRange;}, set: function(_){xRange=_;}},
