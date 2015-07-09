@@ -1,5 +1,3 @@
-import controller from 'metrigo-ui/controllers/condition';
-
 (function(){
 
 var nv = window.nv || {};
