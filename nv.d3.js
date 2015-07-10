@@ -4750,13 +4750,13 @@ nv.models.indentedTree = function() {
 
       // Toggle children on click.
       function addClick(d, _, unshift) {
-        var controller = nv.conditionController;
+        var controller = d.controller;
         var boundSend = controller.send.bind(controller);
         boundSend('addUserSegment', d.id);
       }
 
       function blockClick(d, _, unshift) {
-        var controller = nv.conditionController;
+        var controller = d.controller;
         var boundSend = controller.send.bind(controller);
         boundSend('blockUserSegment', d.id);
       }
